@@ -1,0 +1,492 @@
+---
+title: "Generative models of online discussion threads"
+output: html_notebook
+---
+<br/>Welcome to our [ICWSM-19 tutorial](https://icwsm.org/2019/program/tutorial/) on generative models of online discussion threads. The tutorial is based on the survey:
+
+* [Aragón, P., Gómez, V., Garcı́a, D. & Kaltenbrunner, A. Generative models of online discussion threads: state of the art and research challenges. J. Internet Serv. Appl. 8, 15 (2017). DOI 10.1186/s13174-017-0066-z](https://jisajournal.springeropen.com/articles/10.1186/s13174-017-0066-z)
+
+<br/>This notebook is based on the [genthreads](https://github.com/alumbreras/generative-discussion-threads/) R package developed by [Alberto Lumbreras](https://github.com/alumbreras/) and then extended by [Matteo Manca](https://github.com/matteomanca). Our purpose is to provide tutorial attendeeds with computational and statistical tools to:
+
+ * Represent data from online discussion threads using array structures
+ * Visualize online discussion threads as tree networks
+ * Apply different generative models of online discussion threads:
+   * Preferential attachment process
+   * Gómez et al. 2013
+   * Aragón et al. 2017
+ * Validate generative models through structural properties:
+   * Size
+   * Degree
+   * Depth
+
+<br/>
+
+# Getting started
+
+First of all, download R Studio from
+
+* [https://www.rstudio.com/](https://www.rstudio.com/)
+
+Open R Studio and install some R packages we will need:
+```{r}
+#install.packages("igraph")      # Classic R package for graphs
+#install.packages("ggplot2")     # Classic R package for plots
+#install.packages("tidyr")       # Classic R package to manipulate data
+#install.packages("dplyr")       # Classic R package to manipulate data
+#install.packages("dfoptim")     # R package with Nelder-Mead optimizer
+#install.packages("foreach")     # R package for the foreach looping construct
+#install.packages("doParallel")  # R package for the %dopar% function using the parallel package
+```
+
+<br/>It is time now to download the R package, there are two options:
+
+* if you have git: `git clone https://github.com/alumbreras/generative-discussion-threads.git`
+
+* otherwise: download and unzip [https://github.com/alumbreras/generative-discussion-threads/archive/master.zip](https://github.com/alumbreras/generative-discussion-threads/archive/master.zip)
+
+Launch R Studio and open any file from our package, for instance: 
+
+    analysis/Tutorial ICWSM/notebookR.Rmd 
+   
+and then tell R to make this directory its working directory:
+
+    Session -> Set Working Directory -> To Source File Location
+    
+<br/>Finally, tell R to load the package.
+```{r}
+devtools::load_all() # load the functions of the package
+```
+
+<br/>
+
+# Representation of online discussion threads
+
+Asychronous conversations on the Internet are often represented as threads, which are initiated by a user posting a starting message and then users send replies to either the initial message or to the existing replies. Therefore, given this sequential posting behavior, online discussion threads follow a tree network structure.
+
+### Basic data structures
+
+We will first learn how to represent the structure and dynamics of an online conversations in a very simple way: a **parents vector**. The parents vector is a vector $\boldsymbol{\pi} = (\pi_1,...,\pi_2)$ where $\pi_t$ contains the parent of node $t$. Our package contains a function that plots the tree corresponding to a parents vector.
+
+![](https://elaragon.files.wordpress.com/2019/05/example_thread.png)
+
+
+```{r}
+# Vector representation
+parents           <- c(1,1,2,1,5,2,1,6)
+
+# Plot it as a tree
+gtree             <- parents_to_tree(parents)
+V(gtree)[1]$color <- "red"                      # except the ro ot (initial message)
+deg <- degree(gtree, mode="all")
+gtree.un          <- as.undirected(gtree)       
+la                <- layout_as_tree(gtree.un, mode='out', root=1)
+plot(gtree.un, layout = la, vertex.size=15+deg*5)
+```
+This structure is valid for any discussion thread. Thus, you will be able to use this package as soon as you represent collections of threads as a list of parent vectors. 
+
+Although parents vector is the basic structure, our package convert these vectors into dataframes with some metadata that can be easily deduced from the parents vector and which will be needed by the generative models of online discussion threads. For instance, to transform our parents vector into a dataframe:
+```{r}
+# Vector representation
+parents   <- c(1,1,2,1,5,2,1,6)
+
+# Dataframe representation. Easy to make computations
+df.thread <- parents_to_dataframe(parents)
+df.thread
+```
+where:
+
+    * post:           id of the node
+    * t:              time steps in which the node appeared (root appears at t=0)
+    * parent:         id of parent node
+    * popularity:     degree of parent node just before this node appeared
+    * root:           1 if the parent node is the root
+    * lag (recency):  time steps elapsed since the parent post appeared.
+
+
+<br/>
+
+### Loading real online discussion threads from Reddit
+
+For Reddit forums, monthly dumps (in JSON format) are available at:
+
+* [http://files.pushshift.io/reddit/comments/](http://files.pushshift.io/reddit/comments/)
+
+You can parse a montly dump and store it in a MySQL database with:
+
+* [https://github.com/alumbreras/reddit_parser](https://github.com/alumbreras/reddit_parser)
+
+However, for this tutorial, we have already prepared some data from Reddit in the form of dataframes. 
+First, we load the data, convert them into parent vectors, and then plot some of them:
+
+```{r}
+data("df.posts.france")
+
+# Create dataframe structure dropping short threads
+df.thread <- df.posts %>%
+  group_by(thread) %>% arrange(date) %>% filter(n()>10) %>%
+  mutate(pi = as.integer(match(parent, unique(parent))-1)) %>% 
+  ungroup %>%
+  arrange(thread, date)
+
+# Convert dataframe to list of parent vectors
+parents <- df.thread %>% filter(pi > 0) %>% group_by(thread) %>%  
+  do(thread=.$pi) %>%  ungroup()  %>%
+  lapply(function(x) {(x)})
+parents <- parents[[1]]
+```
+```{r}
+cat('Threads:', length(parents))
+
+# Plot some threads in tree and graph representations
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=deg*2, vertex.label=NA)
+  #plot.tree(parents[[i]])
+}
+```
+
+<br/>
+
+# Modeling of online discussion threads
+
+We will start by the generative model of [Gómez et al. 2013](https://doi.org/10.1007/s11280-012-0162-8). 
+In this model, when a new comment arrives to the discussion, it is attached to an existing node $j\in~1,...,t$ with probability
+proportional to its \emph{attractiveness} function $\phi_j(\cdot)$, defined as a combination of the features $\theta=(\alpha,\tau,\beta)$
+$$
+ \phi_j ( \pi_{1:t}; \theta ) := \alpha \text{deg}_j(\pi_{1:t}) + \beta\delta_{j,1}  + \tau^{t+1-j} 
+ \\
+ p(\pi_{t+1}=j|\pi_{1:t};\theta) \propto\phi_j(\pi_{1:t};\theta)
+$$
+where $\text{deg}_j(\pi_{1:t})$ is the degree of node $j$ in the tree $\pi_{1:t}$
+and $\delta$ is the Kronecker delta function, i.e. $\beta$ is only relevant for the root node.
+
+Our package provides:
+
+ * the likelihood function.
+    
+         likelihoods.R -> likelihood_post_Gomez2013(df.trees, alpha, beta, tau)
+
+ * an estimation function based upon the likelihood:
+ 
+         estimators.R  -> estimation_Gomez2013(df.trees, params){ 
+         (optimizes objective function likelihood_post_Gomez2013)
+         
+ * a function to generate synthetic data:
+ 
+         thread_generators.R -> gen.parentsvector.Gomez2013(n, alpha, beta, tau)
+         (generates artificial parent vectors)
+ 
+
+<br/>Other useful files are:
+
+   * **data_structures.R**: functions to convert from parent vectors to dataframes and vice versa.
+   * **structural_properties.R**: functions to compute structural properties of a forum dataset (synthetic or real)
+   * **plot_utils.R**: functions to plot trees, etc.
+
+
+<br/>
+
+### Generating synthetic threads using the model parameters
+
+We can generate synthetic threads assigning specific values to the model parameters. 
+
+To generate 500 random threads with 100 messages, set the all the values equal to 0.
+```{r}
+alpha <- 0
+beta <- 0
+tau <- 1
+ntrees <- 8
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=deg*2, vertex.label=NA)
+  #plot.tree(parents[[i]])
+}
+```
+
+
+<br/><br/>
+
+**Let's tune the parameters to better understand this generative model**
+
+On the one hand, if we want to emphasize the role of popularity (messages with many replies will attract new replies), we should increase $\alpha$.
+```{r}
+alpha <- 2
+beta <- 0
+tau <- 1
+ntrees <- 8
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=deg*2, vertex.label=NA)
+  #plot.tree(parents[[i]])
+}
+```
+
+<br/>
+
+On the other hand, if we want to emphasize novelty (newest messages will attract new replies), we should set $\tau$ close to 0.
+
+```{r}
+alpha <- 0
+beta <- 0
+tau <- 0.1
+ntrees <- 8
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=deg*2, vertex.label=NA)
+  #plot.tree(parents[[i]])
+}
+```
+
+<br/>
+
+Finally, if we want to make the root (initial message) very attractive to new replies, we should increase $\beta$ instead.
+
+
+```{r}
+alpha <- 0
+beta <- 4
+tau <- 0.9
+ntrees <- 8
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=1+deg/2, vertex.label=NA)
+  #plot.tree(parents[[i]])
+}
+```
+
+
+<br/>
+
+## Sanity check
+
+The values used above were useful to generate synthetic threads at random or by exaggerating one of the features. Now let's try more realistic values $(\alpha=0.5, \beta=1, \tau=0.8)$.
+```{r}
+alpha <- 0.5
+beta <- 1
+tau <- 0.8
+ntrees <- 500
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=1+deg/2, vertex.label=NA)
+  #plot.tree(parents[[i]])
+}
+```
+
+Before fitting our model to real data, we will perform a sanity check to validate that we can estimate these exact parameter values of our synthetic trees. First, let check whether the likelihood function for a given parameter given the others peaks around the true value:
+
+For $\alpha$, we should obtain $0.5$
+:
+```{r}
+par(mfrow = c(1,1))
+
+df.trees <- all_parents_to_dataframe(parents)        
+
+alpha_grid <- seq(0.1,5, by = 0.05)
+like <- rep(NA, length(alpha_grid))
+for(i in 1:length(alpha_grid)){
+  like[i] <- likelihood_Gomez2013(df.trees, alpha_grid[i], beta, tau)
+}
+plot(alpha_grid, like, xlab = 'alpha')
+abline(v=alpha, col = 'blue')
+```
+
+For $\beta$, we should obtain $1$
+```{r}
+beta_grid <- seq(0,2, by = 0.1)
+like <- rep(NA, length(beta_grid))
+for(i in 1:length(beta_grid)){
+  like[i] <- likelihood_Gomez2013(df.trees, alpha=alpha, beta_grid[i], tau)
+}
+plot(beta_grid, like, xlab = 'beta')
+abline(v=beta, col = 'blue')
+```
+
+For $\tau$, we should obtain $0.8$:
+```{r}
+tau_grid <- seq(0,1, by = 0.05)
+like <- rep(NA, length(tau_grid))
+for(i in 1:length(tau_grid)){
+  like[i] <- likelihood_Gomez2013(df.trees, alpha, beta, tau_grid[i])
+}
+plot(tau_grid, like, xlab = 'tau')
+abline(v=tau, col = 'blue')
+```
+
+Finally, we check whether we get estimate the true parameter values for different initializations and different collection size:
+
+```{r}
+alpha <- 0.5
+beta <- 1
+tau <- 0.8
+ntrees <- 500
+n = 100
+
+df.trees <- all_parents_to_dataframe(parents)        
+df.results <- data.frame()
+for(ntrees in c(10, 100, 1000)){
+  # Generate trees
+  parents <- replicate(ntrees, gen.parentsvector.Gomez2013(n, alpha, beta, tau), simplify = FALSE)
+  df.trees <- all_parents_to_dataframe(parents)        
+    
+  # Estimate with different init parameters
+  for(xp in 1:10){
+    alpha_0 <- runif(1)
+    beta_0  <- runif(1)*10
+    tau_0   <- runif(1, max=0.99)
+    res <- estimation_Gomez2013(df.trees = df.trees, params=list(alpha_0, beta_0, tau_0))
+    res$ntrees <- ntrees
+    df.results <- rbind(df.results, res)
+  }
+}
+df.results
+```
+
+<br/>
+
+## Validation of the model model with real online discussion threads
+
+
+We now estimate the parameter values from the Reddit discussion threads:
+
+```{r}
+# Load again the real data
+data("df.posts.france")
+
+df.thread <- df.posts %>%
+  group_by(thread) %>% arrange(date) %>% filter(n()>10) %>%
+  mutate(pi = as.integer(match(parent, unique(parent))-1)) %>% 
+  ungroup %>%
+  arrange(thread, date)
+
+parents <- df.thread %>% filter(pi > 0) %>% group_by(thread) %>%  
+  do(thread=.$pi) %>%  ungroup()  %>%
+  lapply(function(x) {(x)})
+parents <- parents[[1]]
+```
+
+```{r}
+cat('Threads:', length(parents))
+
+# Estimate parameters
+
+# Store in dataframe format. 
+# Each line contains the post id, the chosen parent
+# and the features of its parent (popularity, lag, root) at the 
+# moment (t) of that choice.
+df.trees <- all_parents_to_dataframe(parents)        
+
+# Estimate alpha, beta, tau parameters
+res <- estimation_Gomez2013(df.trees = df.trees, params=list(alpha=0.5, beta=0.6, tau=0.5))
+res
+```
+
+<br/>
+
+and we finally we check whether our model generate synthetic threads with the structural properties similar to the ones of the real threads from Reddit.
+
+```{r}
+# Generate threads with the estimated parameters
+sizes <- sapply(parents, function(x) length(x))
+parents_hat <- list()
+for(i in 1:length(sizes)){
+  parents_hat[[i]] <- gen.parentsvector.Gomez2013(sizes[i], res$alpha, res$beta, res$tau)
+}
+```
+
+```{r}
+# Degree distribution
+df.degrees     <- struct_degree_distribution(parents)
+df.degrees_hat <- struct_degree_distribution(parents_hat)
+df.degrees$cumprob     <- cumsum(df.degrees$frequency/sum(df.degrees$frequency))
+df.degrees_hat$cumprob <- cumsum(
+  df.degrees_hat$frequency/sum(df.degrees_hat$frequency)
+)            
+
+df.degrees$data     <- 'real'
+df.degrees_hat$data <- 'estimated'
+df.degrees_all <- bind_rows(df.degrees, df.degrees_hat)
+ggplot(df.degrees_all, aes(x=degree, y = cumprob, color = data)) + 
+  geom_point(aes(x=degree, y = cumprob)) + 
+  geom_point(aes(x=degree, y = cumprob)) +
+  scale_y_log10() +
+  scale_x_log10() + 
+  theme_bw() +
+  ylab('CPF')
+```
+
+
+```{r}
+
+# Subtree size distribution
+df.subtrees     <- struct_subtree_size_distribution(parents)
+df.subtrees_hat <- struct_subtree_size_distribution(parents_hat)
+df.subtrees$cumprob     <- cumsum(df.subtrees$frequency/sum(df.subtrees$frequency))
+df.subtrees_hat$cumprob <- cumsum(df.subtrees_hat$frequency/sum(df.subtrees_hat$frequency))        
+df.subtrees$data     <- 'real'
+df.subtrees_hat$data <- 'estimated'
+df.subtrees_all <- bind_rows(df.subtrees, df.subtrees_hat)
+df.degrees_all <- bind_rows(df.degrees, df.degrees_hat)
+ggplot(df.subtrees_all, aes(x=size, y = cumprob, color = data)) + 
+  geom_point(aes(x=size, y = cumprob)) + 
+  geom_point(aes(x=size, y = cumprob)) +
+  scale_y_log10() +
+  scale_x_log10() + 
+  theme_bw() +
+  ylab('CPF')
+```
+
