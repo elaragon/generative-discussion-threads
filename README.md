@@ -16,8 +16,8 @@ The notebook for the hands-on session is based on the [genthreads](https://githu
    * Subtree (cascade) size 
    * Depth
    
-![](https://icwsm.org/2019/images/logo.png)
-
 ## Acknowledgment
 
-This work is supported by the Spanish Ministry of Economy and Competitiveness under the Maria de Maeztu Units of Excellence Programme (MDM-2015-0502). 
+This work is supported by the Spanish Ministry of Economy and Competitiveness under the Maria de Maeztu Units of Excellence Programme (MDM-2015-0502).
+
+![](https://pbs.twimg.com/media/DgqBO7ZV4AIO58d.jpg)
