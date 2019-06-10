@@ -13,8 +13,8 @@ The purpose of this notebook is to provide tutorial attendeeds with computationa
  * Represent data from online discussion threads using array structures
  * Visualize online discussion threads as tree networks
  * Apply different generative models of online discussion threads:
-   * Gómez et al. 2013
-   * Aragón et al. 2017
+   * [Gómez et al. 2013](https://doi.org/10.1007/s11280-012-0162-8)
+   * [Aragón et al. 2017](https://aaai.org/ocs/index.php/ICWSM/ICWSM17/paper/view/15609)
  * Validate generative models through structural properties:
    * Degree
    * Subtree (cascade) size 
@@ -30,13 +30,13 @@ First of all, download R Studio from
 
 Open R Studio and install some R packages we will need:
 ```{r}
-# install.packages("igraph")      # Classic R package for graphs
-# install.packages("ggplot2")     # Classic R package for plots
-# install.packages("tidyr")       # Classic R package to manipulate data
-# install.packages("dplyr")       # Classic R package to manipulate data
-# install.packages("dfoptim")     # R package with Nelder-Mead optimizer
-# install.packages("foreach")     # R package for the foreach looping construct
-# install.packages("doParallel")  # R package for the %dopar% function using the parallel package
+  # install.packages("igraph")      # Classic R package for graphs
+  # install.packages("ggplot2")     # Classic R package for plots
+  # install.packages("tidyr")       # Classic R package to manipulate data
+  # install.packages("dplyr")       # Classic R package to manipulate data
+  # install.packages("dfoptim")     # R package with Nelder-Mead optimizer
+  # install.packages("foreach")     # R package for the foreach looping construct
+  # install.packages("doParallel")  # R package for the %dopar% function using the parallel package
 ```
 
 <br/>It is time now to download the R package, there are two options:
@@ -475,7 +475,9 @@ for(i in 1:8){
 ```{r}
 # Degree distribution
 df.degrees     <- struct_degree_distribution(parents)
+df.degrees$prob <- df.degrees$frequency/sum(df.degrees$frequency)
 df.degrees_hat.Gomez2013 <- struct_degree_distribution(parents_hat.Gomez2013)
+df.degrees_hat.Gomez2013$prob <- df.degrees_hat.Gomez2013$frequency/sum(df.degrees_hat.Gomez2013$frequency)
 df.degrees$cumprob     <- cumsum(df.degrees$frequency/sum(df.degrees$frequency))
 df.degrees_hat.Gomez2013$cumprob <- cumsum(df.degrees_hat.Gomez2013$frequency/sum(df.degrees_hat.Gomez2013$frequency))            
 df.degrees$data     <- 'data'
@@ -484,15 +486,17 @@ df.degrees_all <- bind_rows(df.degrees, df.degrees_hat.Gomez2013)
 plotdegrees <- ggplot(df.degrees_all, aes(x=degree, y=cumprob, color=data)) + 
   geom_point(aes(x=degree, y = cumprob), shape = 21, size = 1, stroke = 1) +
   geom_line(aes(x=degree, y = cumprob), size=0.25) +
-  scale_y_log10(breaks=c(seq(0.1,1,0.1))) +
+  scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
   scale_x_log10(breaks=c(1,10,100)) +
   theme_bw() +
   theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
-  ylab('cdf') 
+  ylab('pdf') 
 
 # Subtree size distribution
 df.subtrees     <- struct_subtree_size_distribution(parents)
+df.subtrees$prob <- df.subtrees$frequency/sum(df.subtrees$frequency)
 df.subtrees_hat.Gomez2013 <- struct_subtree_size_distribution(parents_hat.Gomez2013)
+df.subtrees_hat.Gomez2013$prob <- df.subtrees_hat.Gomez2013$frequency/sum(df.subtrees_hat.Gomez2013$frequency)
 df.subtrees$cumprob     <- cumsum(df.subtrees$frequency/sum(df.subtrees$frequency))
 df.subtrees_hat.Gomez2013$cumprob <- cumsum(df.subtrees_hat.Gomez2013$frequency/sum(df.subtrees_hat.Gomez2013$frequency))
 df.subtrees$data     <- 'data'
@@ -501,15 +505,18 @@ df.subtrees_all <- bind_rows(df.subtrees, df.subtrees_hat.Gomez2013)
 plotsubtrees <- ggplot(df.subtrees_all, aes(x=size, y=cumprob, color=data)) + 
   geom_point(aes(x=size, y = cumprob), shape = 21, size = 1, stroke = 1) +
   geom_line(aes(x=size, y = cumprob), size=0.25) +
-  scale_y_log10(breaks=c(seq(0.1,1,0.1))) +
+  scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
   scale_x_log10(breaks=c(1,10,100)) +
   theme_bw() +
   theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
-  xlab ('subtree sizes') + ylab('cdf')
+  xlab ('subtree sizes') + 
+  ylab('pdf')
 
 # Depth distribution
 df.depths     <- struct_depth_distribution(parents)
+df.depths$prob <- df.depths$frequency/sum(df.depths$frequency)
 df.depths_hat.Gomez2013 <- struct_depth_distribution(parents_hat.Gomez2013)
+df.depths_hat.Gomez2013$prob <- df.depths_hat.Gomez2013$frequency/sum(df.depths_hat.Gomez2013$frequency)
 df.depths$cumprob     <- 1-cumsum(df.depths$frequency/sum(df.depths$frequency))
 df.depths_hat.Gomez2013$cumprob <- 1-cumsum(df.depths_hat.Gomez2013$frequency/sum(df.depths_hat.Gomez2013$frequency))
 df.depths$data     <- 'data'
@@ -519,9 +526,10 @@ plotdepths <- ggplot(df.depths_all, aes(x=depth, y=cumprob, color=data)) +
   geom_point(aes(x=depth, y = cumprob), shape = 21, size = 1, stroke = 1) +
   geom_line(aes(x=depth, y = cumprob), size=0.25) +
   scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
+  scale_x_log10(breaks=c(1,10,100)) +
   theme_bw() +
   theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
-  ylab('ccdf')
+  ylab('pdf')
 
 grid.arrange(plotdegrees, plotsubtrees, plotdepths, nrow = 3)
 ```
@@ -576,10 +584,10 @@ We now estimate the parameter values from the same Meneame discussion threads (*
 
 
 ```{r}
-params.Aragon2017 <- estimation_Aragon2017(data = df.trees %>% filter(train), params=list(alpha=0.3,
-                                                                                          beta=2.5,
-                                                                                          tau=0.8,
-                                                                                          kappa=5))
+params.Aragon2017 <- estimation_Aragon2017(data = df.trees %>% filter(train), params=list(alpha=runif(1), 
+                                                                                      beta=runif(1)*10, 
+                                                                                      tau=runif(1, max=0.99), 
+                                                                                      kappa=runif(1)*10))
 params.Aragon2017
 save(params.Aragon2017, file = '../../data/meneame.params.rda')
 ```
@@ -616,45 +624,50 @@ for(i in 1:8){
 ```{r}
 # Degree distribution
 df.degrees_hat.Aragon2017 <- struct_degree_distribution(parents_hat.Aragon2017)
+df.degrees_hat.Aragon2017$prob <- df.degrees_hat.Aragon2017$frequency/sum(df.degrees_hat.Aragon2017$frequency)
 df.degrees_hat.Aragon2017$cumprob <- cumsum(df.degrees_hat.Aragon2017$frequency/sum(df.degrees_hat.Aragon2017$frequency))
 df.degrees_hat.Aragon2017$data <- 'Aragón et al. 2017'
 df.degrees_all <- bind_rows(df.degrees, bind_rows(df.degrees_hat.Aragon2017, df.degrees_hat.Gomez2013))
 plotdegrees <- ggplot(df.degrees_all, aes(x=degree, y=cumprob, color=data)) + 
-  geom_point(aes(x=degree, y = cumprob), shape = 21, size = 1, stroke = 1) +
-  geom_line(aes(x=degree, y = cumprob), size=0.25) +
+  geom_point(aes(x=degree, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=degree, y = prob), size=0.25) +
   scale_x_log10(breaks=c(1,10,100)) +
-  scale_y_log10(breaks=seq(0.1,1,0.1)) +
+  scale_y_log10(breaks=c(0.0001,0.001,0.01,0.1,1)) +
   theme_bw() + 
   theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
-  ylab('cdf')
+  ylab('pdf')
 
 # Subtree size distribution
 df.subtrees_hat.Aragon2017 <- struct_subtree_size_distribution(parents_hat.Aragon2017)
+df.subtrees_hat.Aragon2017$prob <- df.subtrees_hat.Aragon2017$frequency/sum(df.subtrees_hat.Aragon2017$frequency)
 df.subtrees_hat.Aragon2017$cumprob <- cumsum(df.subtrees_hat.Aragon2017$frequency/sum(df.subtrees_hat.Aragon2017$frequency))        
 df.subtrees_hat.Aragon2017$data <- 'Aragón et al. 2017'
 df.subtrees_all <- bind_rows(df.subtrees, bind_rows(df.subtrees_hat.Aragon2017, df.subtrees_hat.Gomez2013))
 plotsubtrees <- ggplot(df.subtrees_all, aes(x=size, y=cumprob, color=data)) + 
-  geom_point(aes(x=size, y = cumprob), shape = 21, size = 1, stroke = 1) +
-  geom_line(aes(x=size, y = cumprob), size=0.25) +
+  geom_point(aes(x=size, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=size, y = prob), size=0.25) +
   scale_x_log10(breaks=c(1,10,100)) +
-  scale_y_log10(breaks=seq(0.1,1,0.1)) +
+  scale_y_log10(breaks=c(0.0001,0.001,0.01,0.1,1)) +
   theme_bw() +
   theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
-  xlab ('subtree sizes') + ylab('cdf')
+  xlab ('subtree sizes') + 
+  ylab('pdf')
 
 # Depth distribution
 df.depths_hat.Aragon2017 <- struct_depth_distribution(parents_hat.Aragon2017)
+df.depths_hat.Aragon2017$prob <- df.depths_hat.Aragon2017$frequency/sum(df.depths_hat.Aragon2017$frequency)
 df.depths_hat.Aragon2017$cumprob <- 1-cumsum(df.depths_hat.Aragon2017$frequency/sum(df.depths_hat.Aragon2017$frequency))    
 df.depths_hat.Aragon2017$data <- 'Aragón et al. 2017'
 df.subtrees_all <- bind_rows(df.subtrees, bind_rows(df.subtrees_hat.Aragon2017, df.subtrees_hat.Gomez2013))
 df.depths_all <- bind_rows(df.depths, bind_rows(df.depths_hat.Gomez2013, df.depths_hat.Aragon2017))
 plotdepths <- ggplot(df.depths_all, aes(x=depth, y=cumprob, color=data)) + 
-  geom_point(aes(x=depth, y = cumprob), shape = 21, size = 1, stroke = 1) +
-  geom_line(aes(x=depth, y = cumprob), size=0.25) +
+  geom_point(aes(x=depth, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=depth, y = prob), size=0.25) +
   scale_y_log10(breaks=c(0.0001,0.001,0.01,0.1,1)) +
+  scale_x_log10(breaks=c(1,10,100)) +
   theme_bw() +
   theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
-  ylab('ccdf')
+  ylab('pdf')
 
 grid.arrange(plotdegrees, plotsubtrees, plotdepths, nrow = 3)
 ```
