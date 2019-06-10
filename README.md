@@ -9,8 +9,8 @@ The notebook for the hands-on session is based on the [genthreads](https://githu
  * Represent data from online discussion threads using array structures
  * Visualize online discussion threads as tree networks
  * Apply different generative models of online discussion threads:
-   * Gómez et al. 2013
-   * Aragón et al. 2017
+   * [Gómez et al. 2013](https://doi.org/10.1007/s11280-012-0162-8)
+   * [Aragón et al. 2017](https://aaai.org/ocs/index.php/ICWSM/ICWSM17/paper/view/15609)
  * Validate generative models through structural properties:
    * Degree
    * Subtree (cascade) size 
