@@ -119,4 +119,3 @@ plot.tree.nicely.sequential <- function(parents, stepsecs = 1){
     Sys.sleep(stepsecs)
   }
 }
-
