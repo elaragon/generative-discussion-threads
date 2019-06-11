@@ -484,8 +484,8 @@ df.degrees$data     <- 'data'
 df.degrees_hat.Gomez2013$data <- 'Gomez et al. 2013'
 df.degrees_all <- bind_rows(df.degrees, df.degrees_hat.Gomez2013)
 plotdegrees <- ggplot(df.degrees_all, aes(x=degree, y=cumprob, color=data)) + 
-  geom_point(aes(x=degree, y = cumprob), shape = 21, size = 1, stroke = 1) +
-  geom_line(aes(x=degree, y = cumprob), size=0.25) +
+  geom_point(aes(x=degree, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=degree, y = prob), size=0.25) +
   scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
   scale_x_log10(breaks=c(1,10,100)) +
   theme_bw() +
@@ -503,8 +503,8 @@ df.subtrees$data     <- 'data'
 df.subtrees_hat.Gomez2013$data <- 'Gomez et al. 2013'
 df.subtrees_all <- bind_rows(df.subtrees, df.subtrees_hat.Gomez2013)
 plotsubtrees <- ggplot(df.subtrees_all, aes(x=size, y=cumprob, color=data)) + 
-  geom_point(aes(x=size, y = cumprob), shape = 21, size = 1, stroke = 1) +
-  geom_line(aes(x=size, y = cumprob), size=0.25) +
+  geom_point(aes(x=size, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=size, y = prob), size=0.25) +
   scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
   scale_x_log10(breaks=c(1,10,100)) +
   theme_bw() +
@@ -523,8 +523,8 @@ df.depths$data     <- 'data'
 df.depths_hat.Gomez2013$data <- 'Gomez et al. 2013'
 df.depths_all <- bind_rows(df.depths, df.depths_hat.Gomez2013)
 plotdepths <- ggplot(df.depths_all, aes(x=depth, y=cumprob, color=data)) + 
-  geom_point(aes(x=depth, y = cumprob), shape = 21, size = 1, stroke = 1) +
-  geom_line(aes(x=depth, y = cumprob), size=0.25) +
+  geom_point(aes(x=depth, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=depth, y = prob), size=0.25) +
   scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
   scale_x_log10(breaks=c(1,10,100)) +
   theme_bw() +
@@ -666,7 +666,7 @@ plotdepths <- ggplot(df.depths_all, aes(x=depth, y=cumprob, color=data)) +
   scale_y_log10(breaks=c(0.0001,0.001,0.01,0.1,1)) +
   scale_x_log10(breaks=c(1,10,100)) +
   theme_bw() +
-  theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
+  theme(panel.grid.major = element_line(colour = "#d0d0d0")) +
   ylab('pdf')
 
 grid.arrange(plotdegrees, plotsubtrees, plotdepths, nrow = 3)
