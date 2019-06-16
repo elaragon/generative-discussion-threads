@@ -1,0 +1,1151 @@
+---
+title: "Generative models of online discussion threads"
+output: html_notebook
+---
+<br/>Welcome to this tutorial on generative models of online discussion threads. The tutorial is based on the survey:
+
+* [Aragón, P., Gómez, V., Garcı́a, D. & Kaltenbrunner, A. Generative models of online discussion threads: state of the art and research challenges. J. Internet Serv. Appl. 8, 15 (2017). DOI 10.1186/s13174-017-0066-z](https://jisajournal.springeropen.com/articles/10.1186/s13174-017-0066-z)
+
+This notebook is based on the [genthreads](https://github.com/alumbreras/generative-discussion-threads/) R package developed by [Alberto Lumbreras](https://github.com/alumbreras/) and then extended in collaboration with [Matteo Manca](https://github.com/matteomanca). 
+
+The purpose of this notebook is to provide tutorial attendeeds with computational and statistical tools to:
+
+ * Represent data from online discussion threads using array structures
+ * Visualize online discussion threads as tree networks
+ * Apply different generative models of online discussion threads:
+   * [Gómez et al. 2013](https://doi.org/10.1007/s11280-012-0162-8)
+   * [Aragón et al. 2017](https://aaai.org/ocs/index.php/ICWSM/ICWSM17/paper/view/15609)
+ * Validate generative models through structural properties:
+   * Degree
+   * Subtree (cascade) size 
+   * Depth
+
+<br/>
+
+# Getting started
+
+First of all, download R Studio from
+
+* [https://www.rstudio.com/](https://www.rstudio.com/)
+
+Open R Studio and install some R packages we will need:
+```{r}
+  # install.packages("igraph")      # Classic R package for graphs
+  # install.packages("ggplot2")     # Classic R package for plots
+  # install.packages("tidyr")       # Classic R package to manipulate data
+  # install.packages("dplyr")       # Classic R package to manipulate data
+  # install.packages("dfoptim")     # R package with Nelder-Mead optimizer
+  # install.packages("foreach")     # R package for the foreach looping construct
+  # install.packages("doParallel")  # R package for the %dopar% function using the parallel package
+```
+
+<br/>It is time now to download the R package, there are two options:
+
+* if you have git: `git clone https://github.com/elaragon/generative-discussion-threads.git`
+
+* otherwise: download and unzip [https://github.com/elaragon/generative-discussion-threads/archive/master.zip](https://github.com/elaragon/generative-discussion-threads/archive/master.zip)
+
+Launch R Studio and open any file from our package, for instance: 
+
+    analysis/Tutorial UGR/ugr.Rmd 
+   
+and then tell R to make this directory its working directory:
+
+    Session -> Set Working Directory -> To Source File Location
+
+we will also have to load the genthread package.
+```{r}
+devtools::load_all() # load the functions of the package
+library(ggplot2)
+```
+
+
+<br/> Before using the package, let's get familiar with R and igraph with using the amazing [tutorial by Katya Ognyanova](https://github.com/kateto/R-igraph-Network-Workshop-NetSciX).
+
+In R, you can assign a value to an object using assign(),  "<-", or "=".
+
+```{r}
+x <- 3         # Assignment
+x              # Evaluate the expression and print result
+
+y <- 4         # Assignment
+y + 5          # Evaluation, y remains 4
+
+z <- x + 17*y  # Assignment
+z              # Evaluation
+
+rm(z)          # Remove z: deletes the object.
+z              # Error!
+```
+
+
+Comparisons return boolean values: TRUE or FALSE (often abbreviated to T and F)
+ 
+```{r}
+2==2  # Equality
+2!=2  # Inequality
+x <= y # less than or equal: "<", ">", and ">=" also work
+```
+
+Special constants: NA, NULL, Inf, -Inf, NaN
+
+```{r}
+# NA - missing or undefined data
+5 + NA      # When used in an expression, the result is generally NA
+is.na(5+NA) # Check if missing
+
+# NULL - an empty object, e.g. a null/empty list
+10 + NULL     # use returns an empty object (length zero)
+is.null(NULL) # check if NULL
+
+# Inf and -Inf represent positive and negative infinity
+# They can be returned by  mathematical operations like division of a number by zero:
+
+5/0
+is.finite(5/0) # Check if a number is finite
+
+# NaN (Not a Number) - the result of an operation that cannot be reasonably defined 
+0/0
+is.nan(0/0)
+```
+
+
+Vectors
+
+```{r}
+v1 <- c(1, 5, 11, 33)       # Numeric vector, length 4
+v2 <- c("hello","world")    # Character vector, length 2 (a vector of strings)
+v3 <- c(TRUE, TRUE, FALSE)  # Logical vector, same as c(T, T, F)
+
+# Combining different types of elements in one vector will coerce the elements 
+# to the least restrictive type:
+
+v4 <- c(v1,v2,v3,"boo") 	# All elements turn into strings
+
+# Other ways to create vectors:
+v <- 1:7         # same as c(1,2,3,4,5,6,7)  
+v <- rep(0, 77)  # repeat zero 77 times: v is a vector of 77 zeroes
+v <- rep(1:3, times=2) # Repeat 1,2,3 twice  
+v <- rep(1:10, each=2) # Repeat each element twice  
+v <- seq(10,20,2) # sequence: numbers between 10 and 20, in jumps of 2  
+
+length(v)        # check the length of the vector
+
+v1 <- 1:5         # 1,2,3,4,5
+v2 <- rep(1,5)    # 1,1,1,1,1 
+
+# Element-wise operations:
+v1 + v2      # Element-wise addition
+v1 + 1       # Add 1 to each element
+v1 * 2       # Multiply each element by 2
+v1 + c(1,7)  # This doesn't work: (1,7) is a vector of different length
+
+# Mathematical operations:
+sum(v1)      # The sum of all elements
+mean(v1)     # The average of all elements
+sd(v1)       # The standard deviation
+cor(v1,v1*5) # Correlation between v1 and v1*5 
+
+# Logical operations:
+v1 > 2       # Each element is compared to 2, returns logical vector
+v1==v2       # Are corresponding elements equivalent, returns logical vector.
+v1!=v2       # Are corresponding elements *not* equivalent? Same as !(v1==v2)
+(v1>2) | (v2>0)   # | is the boolean OR, returns a vector.
+(v1>2) & (v2>0)   # & is the boolean AND, returns a vector.
+(v1>2) || (v2>0)  # || is the boolean OR, returns a single value
+(v1>2) && (v2>0)  # && is the boolean AND, ditto
+
+# Vector elements
+v1[3]             # third element of v1
+v1[2:4]           # elements 2, 3, 4 of v1
+v1[c(1,3)]        # elements 1 and 3 - note that your indexes are a vector
+v1[c(T,T,F,F,F)]  # elements 1 and 2 - only the ones that are TRUE
+v1[v1>3]          # v1>3 is a logical vector TRUE for elements >3
+```
+
+NOTE: If you are used to languages indexing from 0, R will surprise you by indexing from 1.
+
+```{r}
+# To add more elements to a vector, simply assign them values.
+v1[6:10] <- 6:10
+
+# We can also directly assign the vector a length:
+length(v1) <- 15 # the last 5 elements are added as missing data: NA
+```
+
+
+Factors: they are used to store categorical data.
+
+```{r}
+eye.col.v <- c("brown", "green", "brown", "blue", "blue", "blue")         #vector
+eye.col.f <- factor(c("brown", "green", "brown", "blue", "blue", "blue")) #factor
+eye.col.v
+eye.col.f
+```
+
+R will identify the different levels of the factor - e.g. all distinct values. 
+The data is stored internally as integers - each number corresponding to a factor level.
+
+```{r}
+levels(eye.col.f)  # The levels (distinct values) of the factor (categorical variable)
+as.numeric(eye.col.f)  # The factor as numeric values: 1 is  blue, 2 is brown, 3 is green
+as.numeric(eye.col.v)  # The character vector, however, can not be coerced to numeric
+
+as.character(eye.col.f)  
+as.character(eye.col.v) 
+```
+
+
+Matrices & Arrays
+
+```{r}
+# A matrix is a vector with dimensions:
+m <- rep(1, 20)   # A vector of 20 elements, all 1
+dim(m) <- c(5,4)  # Dimensions set to 5 & 4, so m is now a 5x4 matrix
+
+# Create a matrix using matrix():
+m <- matrix(data=1, nrow=5, ncol=4)  # same matrix as above, 5x4, full of 1s
+m <- matrix(1,5,4) 			             # same matrix as above
+dim(m)                               # What are the dimensions of m?
+
+# Create a matrix by combining vectors:
+m <- cbind(1:5, 5:1, 5:9)  # Bind 3 vectors as columns, 5x3 matrix
+m <- rbind(1:5, 5:1, 5:9)  # Bind 3 vectors as rows, 3x5 matrix
+
+m <- matrix(1:10,10,10)
+
+# Select matrix elements: 
+m[2,3]  # Matrix m, row 2, column 3 - a single cell
+m[2,]   # The whole second row of m as a vector
+m[,2]   # The whole second column of m as a vector
+m[1:2,4:6] # submatrix: rows 1 and 2, columns 4, 5 and 6
+m[-1,]     # all rows *except* the first one
+
+m[1,]==m[,1]  # Are elements in row 1 equivalent to corresponding elements from column 1? 
+m>3           # A logical matrix: TRUE for m elements >3, FALSE otherwise
+m[m>3]        # Selects only TRUE elements - that is ones greater than 3
+
+
+t(m)          # Transpose m     
+m <- t(m)     # Assign m the transposed m
+m %*% t(m)    # %*% does matrix multiplication
+m * m         # * does element-wise multiplication
+
+# Arrays: more than 2 dimensions
+# Created with the array() function:
+
+a <- array(data=1:18,dim=c(3,3,2)) # 3d with dimensions 3x3x2
+a <- array(1:18,c(3,3,2))          # the same array
+```
+
+
+Lists: collections of objects (e.g. of strings, vectors, matrices, other lists, etc.)
+
+```{r}
+l1 <- list(boo=v1,foo=v2,moo=v3,zoo="Animals!")  # A list with four components
+l2 <- list(v1,v2,v3,"Animals!")
+
+l3 <- list()
+l4 <- NULL
+
+l1["boo"]      # Access boo: this returns a list.
+l1[["boo"]]    # Access boo: this returns the numeric vector
+l1[[1]]        # Returns the first component of the list, equivalent to above.
+l1$boo         # Named elements can be accessed using the $ operator - equivalent to [[]]
+
+# Add more elements to a list:
+l3[[1]] <- 11 # add an element to the empty list l3
+l4[[3]] <- c(22, 23) # add a vector as element 3 in the empty list l4. 
+                     # Since we added element 3, elements 1 & 2 will be generated and empty (NULL)
+l1[[5]] <- "More elements!" # The list l1 had 4 elements, we're adding a 5th here.
+l1[[8]] <- 1:11 # We added an 8th element, but not 6th or 7th. Those will be created empty (NULL)
+l1$Something <- "A thing"  # Adds a ninth element - "A thing", named "Something"
+
+```
+
+
+Data Frames: The data frame is a special kind of list used for storing dataset tables. Think of rows as cases, columns as variables. Each column is a vector or factor.
+
+```{r}
+# Creating a dataframe:
+
+dfr1 <- data.frame( ID=1:4,
+                    FirstName=c("John","Jim","Jane","Jill"),
+                    Female=c(F,F,T,T), 
+                    Age=c(22,33,44,55) )
+
+dfr1$FirstName   # Access the second column of dfr1. 
+# Notice that R thinks this is a categorical variable 
+# and so it's treating it like a factor, not a character vector.
+
+# Let's get rid of the factor by telling R to treat FirstName as a vector:
+dfr1$FirstName <- as.vector(dfr1$FirstName)
+
+# Alternatively, you can tell R you don't like factors from the start using stringsAsFactors=FALSE
+dfr2 <- data.frame(FirstName=c("John","Jim","Jane","Jill"), stringsAsFactors=FALSE)
+dfr2$FirstName   # Success: not a factor.
+
+# Access elements of the data frame
+dfr1[1,]   # First row, all columns
+dfr1[,1]   # First column, all rows
+dfr1$Age   # Age column, all rows
+dfr1[1:2,3:4] # Rows 1 and 2, columns 3 and 4 - the gender and age of John & Jim
+dfr1[c(1,3),] # Rows 1 and 3, all columns
+
+# Find the names of everyone over the age of 30 in the data
+dfr1[dfr1$Age>30,2]
+
+# Find the average age of all females in the data:
+mean ( dfr1[dfr1$Female==TRUE,4] )
+```
+
+
+Flow Control
+
+```{r}
+# if (condition) expr1 else expr2
+x <- 5; y <- 10
+if (x==0) y <- 0 else y <- y/x #  
+y
+
+# for (variable in sequence) expr
+ASum <- 0; AProd <- 1
+for (i in 1:x)  
+{
+  ASum <- ASum + i
+  AProd <- AProd * i
+}
+ASum  # equivalent to sum(1:x)
+AProd # equivalemt to prod(1:x)
+
+# while (condintion) expr
+while (x > 0) {print(x); x <- x-1;}
+
+# repeat expr, use break to exit the loop
+repeat { print(x); x <- x+1; if (x>10) break}
+```
+
+
+R plots and colors
+
+```{r}
+# In most R functions, you can use named colors, hex, or rgb values:
+# (In the simple base plot chart below x and y are point coordiantes, pch 
+# is the point symbol shape, cex is the point size, and col is the color.
+# to see the parameters for ploting in base R, check out ?par
+plot(x=1:10, y=rep(5,10), pch=19, cex=5, col="dark red")
+points(x=1:10, y=rep(6, 10), pch=19, cex=5, col="#557799")
+points(x=1:10, y=rep(4, 10), pch=19, cex=5, col=rgb(.25, .5, .3))
+# You may notice that rgb here ranges from 0 to 1. While this is the R default,
+# you can also set it for the 0-255 range: 
+rgb(10, 100, 100, maxColorValue=255) 
+# We can also set the opacity/transparency using the parameter 'alpha' (range 0-1):
+plot(x=1:5, y=rep(5,5), pch=19, cex=16, col=rgb(.25, .5, .3, alpha=.5), xlim=c(0,6))  
+# If we have a hex color representation, we can set the transparency alpha 
+# using 'adjustcolor' from package 'grDevices'. For fun, let's also set the
+# the plot background to gray using the par() function for graphical parameters.
+par(bg="black")
+col.tr <- grDevices::adjustcolor("#557799", alpha=0.7)
+plot(x=1:5, y=rep(5,5), pch=19, cex=20, col=col.tr, xlim=c(0,6)) 
+par(bg="white")
+# If you plan on using the built-in color names, here's what they are: 
+colors()
+grep("blue", colors(), value=T)
+
+# In many cases, we need a number of contrasting colors, or multiple shades of a color.
+# R comes with some predefined palette function that can generate those for us.
+pal1 <- heat.colors(5, alpha=1)   # generate 5 colors from the heat palette, opaque
+pal2 <- rainbow(5, alpha=.5)      # generate 5 colors from the heat palette, semi-transparent
+plot(x=1:10, y=1:10, pch=19, cex=10, col=pal1)
+plot(x=10:1, y=1:10, pch=19, cex=10, col=pal2)
+# We can also generate our own gradients using colorRampPalette.
+# Note that colorRampPalette returns a *function* that we can use 
+# to generate as many colors from that palette as we need.
+palf <- colorRampPalette(c("gray70", "red")) 
+plot(x=10:1, y=1:10, pch=19, cex=10, col=palf(100)) 
+# To add transparency to colorRampPalette, you need to add a parameter `alpha=TRUE`:
+palf <- colorRampPalette(c(rgb(1,1,1, .2),rgb(.8,0,0, .7)), alpha=TRUE)
+plot(x=10:1, y=1:10, pch=19, cex=10, col=palf(10)) 
+```
+
+
+R troubleshooting
+
+While I generate many (and often very creative) errors in R, there are three
+simple things that will most often go wrong for me. Those include: 
+
+1) Capitalization. R is case sensitive - a graph vertex named "Jack" is not the same
+as one named "jack". The function "rowSums" won't work as "rowsums" or "RowSums".
+
+2) Object class. While many functions are willing to take anything you throw
+at them, some will still surprisingly require character vector or a factor instead of
+a numeric vector, or a matrix instead of a data frame. Functions will also occasionally
+return results in an unexpected formats.
+
+3) Package namespaces. Occasionally problems will arise when different packages
+contain functions with the same name. R may warn you about this by saying something
+like "The following object(s) are masked from 'package:igraph'" as you load a package.
+One way to deal with this is to call functions from a package explicitly using '::'.
+For instance, if function 'blah' is present in packages A and B, you can call
+A::blah and B::blah. In other cases the problem is more complicated, and you may
+have to load packages in certain order, or not use them together at all.
+For example (and pertinent to this workshop), igraph and statnet packages cause
+some problems when loaded at the same time. It is best to detach one before loading
+the other.
+
+
+```{r}
+library(igraph)          # load a package
+detach(package:igraph)   # detach a package
+# For more advanced troubleshooting, check out try(), tryCatch(), and debug().
+?tryCatch
+```
+
+
+### Networks in igraph
+
+```{r}
+rm(list = ls()) # Remove all the objects we created so far.
+library(igraph) # Load the igraph package
+```
+
+### Create networks
+
+```{r}
+g1 <- graph( edges=c(1,2, 2,3, 3,1), n=3, directed=F ) # an undirected graph with 3 edges
+# The numbers are interpreted as vertex IDs, so the edges are 1-->2, 2-->3, 3-->1
+plot(g1) # A simple plot of the network - we'll talk more about plots later
+class(g1)
+g1
+
+g2 <- graph( edges=c(1,2, 2,3, 3,1), n=10 ) # now with 10 vertices, and directed by default
+plot(g2)   
+g2
+
+g3 <- graph( c("John", "Jim", "Jim", "Jill", "Jill", "John")) # named vertices
+# When the edge list has vertex names, the number of nodes is not needed
+plot(g3)
+g3
+
+g4 <- graph( c("John", "Jim", "Jim", "Jack", "Jim", "Jack", "John", "John"), 
+             isolates=c("Jesse", "Janis", "Jennifer", "Justin") )  
+# In named graphs we can specify isolates by providing a list of their names.
+
+plot(g4, edge.arrow.size=.5, vertex.color="gold", vertex.size=15, 
+     vertex.frame.color="gray", vertex.label.color="black", 
+     vertex.label.cex=1.5, vertex.label.dist=2, edge.curved=0.2) 
+
+# Small graphs can also be generated with a description of this kind:
+# '-' for undirected tie, "+-' or "-+" for directed ties pointing left & right, 
+# "++" for a symmetric tie, and ":" for sets of vertices
+
+plot(graph_from_literal(a---b, b---c)) # the number of dashes doesn't matter
+plot(graph_from_literal(a--+b, b+--c))
+plot(graph_from_literal(a+-+b, b+-+c)) 
+plot(graph_from_literal(a:b:c---d:f:e))
+
+gl <- graph_from_literal(a-b-c-d-e-f, a-g-h-b, h-e:f:i, j)
+plot(gl)
+```
+
+
+Edge, vertex, and network attributes
+
+```{r}
+# Access vertices and edges:
+E(g4) # The edges of the object
+V(g4) # The vertices of the object
+
+
+# You can examine the network matrix directly:
+g4[]
+g4[1,] 
+
+# Add attributes to the network, vertices, or edges:
+V(g4)$name # automatically generated when we created the network.
+V(g4)$gender <- c("male", "male", "male", "male", "female", "female", "male")
+E(g4)$type <- "email" # Edge attribute, assign "email" to all edges
+E(g4)$weight <- 10    # Edge weight, setting all existing edges to 10
+
+# Examine attributes
+edge_attr(g4)
+vertex_attr(g4)
+graph_attr(g4)
+
+# Another way to set attributes
+# (you can similarly use set_edge_attr(), set_vertex_attr(), etc.)
+g4 <- set_graph_attr(g4, "name", "Email Network")
+g4 <- set_graph_attr(g4, "something", "A thing")
+
+graph_attr_names(g4)
+graph_attr(g4, "name")
+graph_attr(g4)
+
+g4 <- delete_graph_attr(g4, "something")
+graph_attr(g4)
+
+plot(g4, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
+     vertex.color=c( "pink", "skyblue")[1+(V(g4)$gender=="male")] ) 
+# g4 has two edges going from Jim to Jack, and a loop from John to himself.
+# We can simplify our graph to remove loops & multiple edges between the same nodes.
+# Use 'edge.attr.comb' to indicate how edge attributes are to be combined - possible 
+# options include "sum", "mean", "prod" (product), min, max, first/last (selects 
+# the first/last edge's attribute). Option "ignore" says the attribute should be 
+# disregarded and dropped.
+
+g4s <- simplify( g4, remove.multiple = T, remove.loops = F, 
+                 edge.attr.comb=list(weight="sum", type="ignore") )
+plot(g4s, vertex.label.dist=1.5)
+g4s
+
+# Let's take a look at the description of the igraph object.
+# Those will typically start with up to four letters:
+# 1. D or U, for a directed or undirected graph
+# 2. N for a named graph (where nodes have a name attribute)
+# 3. W for a weighted graph (where edges have a weight attribute)
+# 4. B for a bipartite (two-mode) graph (where nodes have a type attribute)
+#
+# The two numbers that follow refer to the number of nodes and edges in the graph. 
+# The description also lists graph, node & edge attributes, for example:
+# (g/c) - graph-level character attribute
+# (v/c) - vertex-level character attribute
+# (e/n) - edge-level numeric attribute
+```
+
+
+
+### Specific graphs and graph models
+
+```{r}
+# Empty graph
+eg <- make_empty_graph(40)
+plot(eg, vertex.size=10, vertex.label=NA)
+# Full graph
+fg <- make_full_graph(40)
+plot(fg, vertex.size=10, vertex.label=NA)
+# Star graph 
+st <- make_star(40)
+plot(st, vertex.size=10, vertex.label=NA) 
+# Ring graph
+rn <- make_ring(40)
+plot(rn, vertex.size=10, vertex.label=NA)
+# Erdos-Renyi random graph 
+# ('n' is number of nodes, 'm' is the number of edges)
+er <- sample_gnm(n=100, m=40) 
+plot(er, vertex.size=6, vertex.label=NA)  
+# Tree graph
+tr <- make_tree(40, children = 3, mode = "undirected")
+plot(tr, vertex.size=10, vertex.label=NA) 
+```
+
+# Representation of online discussion threads
+
+Asychronous conversations on the Internet are often represented as threads, which are initiated by a user posting a starting message and then users send replies to either the initial message or to the existing replies. Therefore, given this sequential posting behavior, online discussion threads follow a tree network structure.
+
+### Basic data structures
+
+We will first learn how to represent the structure and dynamics of an online conversations in a very simple way: a **parents vector**. The parents vector is a vector $\boldsymbol{\pi} = (\pi_1,...,\pi_2)$ where $\pi_t$ contains the parent of node $t$. Our package contains a function that plots the tree corresponding to a parents vector.
+
+![](https://elaragon.files.wordpress.com/2019/05/example_thread.png)
+
+
+```{r}
+# Vector representation
+parents           <- c(1,1,2,1,5,2,1,6)
+
+# Plot it as a tree
+gtree             <- parents_to_tree(parents)
+V(gtree)[1]$color <- "red"                      # except the root (initial message)
+deg <- degree(gtree, mode="all")
+gtree.un          <- as.undirected(gtree)       
+la                <- layout_as_tree(gtree.un, mode='out', root=1)
+plot(gtree.un, layout = la, vertex.size=15+deg*5)
+```
+
+This structure is valid for any discussion thread. Thus, you will be able to use this package as soon as you represent collections of threads as a list of parent vectors. 
+
+Although parents vector is the basic structure, our package convert these vectors into dataframes with some metadata that can be easily deduced from the parents vector and which will be needed by the generative models of online discussion threads. For instance, to transform our parents vector into a dataframe:
+```{r}
+# Vector representation
+parents   <- c(1,1,2,1,5,2,1,6)
+
+# Dataframe representation. Easy to make computations
+df.thread <- parents_to_dataframe(parents)
+df.thread
+```
+where:
+
+    * post:           id of the node
+    * t:              time steps in which the node appeared (root appears at t=0)
+    * parent:         id of parent node
+    * popularity:     degree of parent node just before this node appeared
+    * root:           1 if the parent node is the root
+    * lag (recency):  time steps elapsed since the parent post appeared.
+
+
+<br/>
+
+Given a list of parent vectors, we can also compute:
+
+- the degree distribution
+```{r}
+p = c()
+p[[1]] = c(1,1,2,1,5,2,1,6)
+struct_degree_distribution(p)
+```
+
+<br/>- the subtree size distribution:
+```{r}
+struct_subtree_size_distribution(p)
+```
+
+<br/>- the depth distribution
+```{r}
+struct_depth_distribution(p)
+```
+
+### Loading real online discussion threads from Meneame
+
+Discussion threads in this tutorial come from [Aragón, P., Gómez, V., & Kaltenbrunner, A. (2017). To Thread or Not to Thread: The Impact of Conversation Threading on Online Discussion. ICWSM 2017 – The International AAAI Conference on Web and Social Media, Montreal, Canada.](https://aaai.org/ocs/index.php/ICWSM/ICWSM17/paper/view/15609). 
+
+There is a CSV file for each discussion thread in May 2015 at _data/meneame/_. Rows are comments listed chronologically and columns are parent_id (initial message is 0), depth, user, parent_user. The dataset is fully available at [Zenodo](https://zenodo.org/record/2536218#.XP1Wv59fhdY). Threads are preprocessed with the script _analysis/Tutorial ICWSM/meneame_preprocessing.R_ which stores the threads as a dataframe df.trees in the file _data/meneame.df.trees.rda_
+
+ -  **Extra:** Given the increasing interest in discussion threads from Reddit, we have also developed the script _analysis/Tutorial ICWSM/reddit_preprocessing.R_. This script parses monthly JSON dumps from [http://files.pushshift.io/reddit/](http://files.pushshift.io/reddit/) as the ones stored at _data/gameofthrones/_ corresponding to discussions in 2018 at the [Game of Thrones subreddit](https://www.reddit.com/r/gameofthrones/) (dumps were downloaded with the bash script _data/reddit-discussions-2018.bash_)
+
+First, we load the data, convert them into parent vectors, and then plot some of them 
+
+```{r}
+data("meneame.df.trees")
+
+# Create dataframe structure with the largest threads
+df.trees <- df.trees %>%  group_by(thread) %>% filter(n()>=70) %>%  ungroup %>% arrange(thread, t)
+
+parents = c()
+threads = unique(df.trees$thread)
+for (i in 1:length(threads)) {
+  parents[[i]] = (df.trees %>% filter(thread==threads[i]))$parent
+}
+
+# Plot some threads in tree and graph representations
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, 
+       layout = la, 
+       vertex.size=sqrt(deg), 
+       vertex.label=NA)
+}
+```
+
+<br/>
+
+# Modeling of online discussion threads
+
+We will start by the generative model of [Gómez, V., Kappen, H. J., Litvak, N., & Kaltenbrunner, A. (2013). A likelihood-based framework for the analysis of discussion threads. World Wide Web, 16(5-6), 645-675.](https://doi.org/10.1007/s11280-012-0162-8).  In this model, when a new comment arrives to the discussion, it is attached to an existing node $j\in~1,...,t$ with probability
+proportional to its \emph{attractiveness} function $\phi_j(\cdot)$, defined as a combination of the features $\theta=(\alpha,\tau,\beta)$
+$$
+ \phi_j ( \pi_{1:t}; \theta ) := \alpha \text{deg}_j(\pi_{1:t}) + \beta\delta_{j,1}  + \tau^{t+1-j} 
+ \\
+ p(\pi_{t+1}=j|\pi_{1:t};\theta) \propto\phi_j(\pi_{1:t};\theta)
+$$
+where $\text{deg}_j(\pi_{1:t})$ is the degree of node $j$ in the tree $\pi_{1:t}$
+and $\delta$ is the Kronecker delta function, i.e. $\beta$ is only relevant for the root node.
+
+Our package provides:
+
+ * the likelihood function: likelihoods.R -> likelihood_Gomez2013(df.trees, alpha, beta, tau)
+
+ * an estimation function based upon the likelihood: estimators.R  -> estimation_Gomez2013(df.trees, params)
+         (optimizes objective function likelihood_Gomez2013)
+         
+ * a function to generate synthetic data: thread_generators.R -> gen.parentsvector.Gomez2013(n, alpha, beta, tau)
+         (generates sythetic parent vectors)
+ 
+
+<br/>Other useful files are:
+
+   * **data_structures.R**: functions to convert from parent vectors to dataframes and vice versa.
+   * **structural_properties.R**: functions to compute structural properties of a forum dataset (synthetic or real)
+   * **plot_utils.R**: functions to plot trees, etc.
+
+
+<br/>
+
+### Generating synthetic threads using the model parameters
+
+We can generate synthetic threads assigning specific values to the model parameters. 
+
+To generate 8 random threads with 100 messages, set the all the values equal to 0.
+```{r}
+alpha <- 0
+beta <- 0
+tau <- 1
+ntrees <- 8
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=deg*2, vertex.label=NA)
+}
+```
+
+
+<br/><br/>
+
+**Let's tune the parameters to better understand this generative model**
+
+On the one hand, if we want to emphasize the role of popularity (messages with many replies will attract new replies), we should increase $\alpha$.
+```{r}
+alpha <- 4
+beta <- 0
+tau <- 1
+ntrees <- 8
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=deg*2, vertex.label=NA)
+}
+```
+
+<br/>
+
+On the other hand, if we want to emphasize novelty (newest messages will attract new replies), we should set $\tau$ close to 0.
+
+```{r}
+alpha <- 0
+beta <- 0
+tau <- 0.1
+ntrees <- 8
+n = 20
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=deg*2, vertex.label=NA)
+}
+```
+
+<br/>
+
+Finally, if we want to make the root (initial message) very attractive to new replies, we should increase $\beta$ instead.
+
+
+```{r}
+alpha <- 0
+beta <- 8
+tau <- 0.9
+ntrees <- 8
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=1+deg/2, vertex.label=NA)
+}
+```
+
+
+<br/>
+
+## Sanity check
+
+The values used above were useful to generate synthetic threads at random or by increasing the value of the parameters. 
+
+Now let's try more realistic values $(\alpha=0.5, \beta=1, \tau=0.8)$.
+```{r}
+alpha <- 0.5
+beta <- 1
+tau <- 0.8
+ntrees <- 500
+n = 100
+parents <- replicate(ntrees,
+                     gen.parentsvector.Gomez2013(n, alpha, beta, tau), 
+                     simplify = FALSE)
+
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=1+deg/2, vertex.label=NA)
+}
+```
+
+Before fitting our model to real data, we will perform a sanity check to validate that we can estimate these exact parameter values of our synthetic trees. First, let check whether the likelihood function for a given parameter given the others peaks around the true value:
+
+For $\alpha$, we should obtain $0.5$:
+```{r}
+par(mfrow = c(1,1))
+
+df.trees <- all_parents_to_dataframe(parents)        
+
+alpha_grid <- seq(0.1,5, by = 0.1)
+likelihood <- rep(NA, length(alpha_grid))
+for(i in 1:length(alpha_grid)){
+  params <- list(alpha=alpha_grid[i],beta=beta,tau=tau)
+  likelihood[i] <- likelihood_Gomez2013(df.trees, params)
+}
+plot(alpha_grid, likelihood, xlab = 'alpha')
+abline(v=alpha, col = 'blue')
+```
+
+For $\beta$, we should obtain $1$
+```{r}
+beta_grid <- seq(0,2, by = 0.1)
+likelihood <- rep(NA, length(beta_grid))
+for(i in 1:length(beta_grid)){
+  params <- list(alpha=alpha,beta=beta_grid[i],tau=tau)
+  likelihood[i] <- likelihood_Gomez2013(df.trees, params)
+}
+plot(beta_grid, likelihood, xlab = 'beta')
+abline(v=beta, col = 'blue')
+```
+
+For $\tau$, we should obtain $0.8$:
+```{r}
+tau_grid <- seq(0,1, by = 0.05)
+likelihood <- rep(NA, length(tau_grid))
+for(i in 1:length(tau_grid)){
+  params <- list(alpha=alpha,beta=beta,tau=tau_grid[i])
+  likelihood[i] <- likelihood_Gomez2013(df.trees, params)
+}
+plot(tau_grid, likelihood, xlab = 'tau')
+abline(v=tau, col = 'blue')
+```
+
+Finally, we check whether we get estimate the true parameter values for different initializations and different collection sizes:
+
+```{r}
+alpha <- 0.5
+beta <- 1
+tau <- 0.8
+n <- 100
+  
+df.results <- data.frame()
+ntrees <- c(10, 50, 100, 500, 1000)
+# For different collection sizes:
+for(nt in ntrees){
+  
+  # Generate synthetic trees
+  parents <- replicate(nt, gen.parentsvector.Gomez2013(n, alpha, beta, tau), simplify = FALSE)
+  df.trees <- all_parents_to_dataframe(parents)        
+      
+  # Estimate with different init parameters
+  res <- estimation_Gomez2013(data = df.trees, params=list(alpha=runif(1), beta=runif(1)*10, tau=runif(1, max=0.99)))
+  res$ntrees <- ntrees
+  df.results <- rbind(df.results, estimation_Gomez2013(data = df.trees, params=list(alpha=runif(1), 
+                                                                                      beta=runif(1)*10, 
+                                                                                      tau=runif(1, max=0.99))))
+}
+df.results$ntrees <-ntrees
+df.results
+```
+
+<br/>
+
+## Validation of the model model with real online discussion threads
+
+
+We now estimate the parameter values of the discussion threads from Meneame:
+
+```{r}
+data("meneame.df.trees")
+
+# Create dataframe structure
+df.trees <- df.trees %>%  group_by(thread) %>% filter(n()>=0) %>%  ungroup %>% arrange(thread, t)
+
+parents = c()
+threads = unique(df.trees$thread)
+for (i in 1:length(threads)) {
+  parents[[i]] = (df.trees %>% filter(thread==threads[i]))$parent
+}
+
+# Plot some threads in tree and graph representations
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree <- parents_to_tree(parents[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, 
+       layout = la, 
+       vertex.size=sqrt(deg), 
+       vertex.label=NA)
+}
+cat('Threads:', length(parents),'\n\n')
+# Estimate alpha, beta, tau parameters
+params.Gomez2013 <- estimation_Gomez2013(data = df.trees, params=list(alpha=runif(1), beta=runif(1)*10, tau=runif(1, max=0.99)))
+params.Gomez2013
+```
+
+
+<br/>
+
+and we check whether our model generate synthetic threads with the structural properties similar to the ones of the real threads from Meneame.
+
+```{r}
+# Generate threads with the estimated parameters
+sizes <- (df.trees %>% group_by(thread) %>% summarise(unique = n()))$unique
+sizes_sample <-  sample(sizes, length(sizes), replace=TRUE)
+parents_hat.Gomez2013 <- list()
+for(i in 1:length(sizes_sample)){
+  parents_hat.Gomez2013[[i]] <- 
+    gen.parentsvector.Gomez2013(
+      sizes_sample[i], 
+      params.Gomez2013$alpha, 
+      params.Gomez2013$beta, 
+      params.Gomez2013$tau)
+}
+# Plot some threads in tree and graph representations
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree             <- parents_to_tree(parents_hat.Gomez2013[[i]])
+  V(gtree)[1]$color <- "red"  # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, 
+       layout = la, 
+       vertex.size=0+sqrt(deg*2), 
+       vertex.label=NA)
+}
+```
+
+```{r}
+# Degree distribution
+df.degrees     <- struct_degree_distribution(parents)
+df.degrees$prob <- df.degrees$frequency/sum(df.degrees$frequency)
+df.degrees_hat.Gomez2013 <- struct_degree_distribution(parents_hat.Gomez2013)
+df.degrees_hat.Gomez2013$prob <- df.degrees_hat.Gomez2013$frequency/sum(df.degrees_hat.Gomez2013$frequency)
+df.degrees$cumprob     <- cumsum(df.degrees$frequency/sum(df.degrees$frequency))
+df.degrees_hat.Gomez2013$cumprob <- cumsum(df.degrees_hat.Gomez2013$frequency/sum(df.degrees_hat.Gomez2013$frequency))            
+df.degrees$data     <- 'data'
+df.degrees_hat.Gomez2013$data <- 'Gomez et al. 2013'
+df.degrees_all <- bind_rows(df.degrees, df.degrees_hat.Gomez2013)
+plotdegrees <- ggplot(df.degrees_all, aes(x=degree, y=cumprob, color=data)) + 
+  geom_point(aes(x=degree, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=degree, y = prob), size=0.25) +
+  scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
+  scale_x_log10(breaks=c(1,10,100)) +
+  theme_bw() +
+  theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
+  ylab('pdf') 
+
+# Subtree size distribution
+df.subtrees     <- struct_subtree_size_distribution(parents)
+df.subtrees$prob <- df.subtrees$frequency/sum(df.subtrees$frequency)
+df.subtrees_hat.Gomez2013 <- struct_subtree_size_distribution(parents_hat.Gomez2013)
+df.subtrees_hat.Gomez2013$prob <- df.subtrees_hat.Gomez2013$frequency/sum(df.subtrees_hat.Gomez2013$frequency)
+df.subtrees$cumprob     <- cumsum(df.subtrees$frequency/sum(df.subtrees$frequency))
+df.subtrees_hat.Gomez2013$cumprob <- cumsum(df.subtrees_hat.Gomez2013$frequency/sum(df.subtrees_hat.Gomez2013$frequency))
+df.subtrees$data     <- 'data'
+df.subtrees_hat.Gomez2013$data <- 'Gomez et al. 2013'
+df.subtrees_all <- bind_rows(df.subtrees, df.subtrees_hat.Gomez2013)
+plotsubtrees <- ggplot(df.subtrees_all, aes(x=size, y=cumprob, color=data)) + 
+  geom_point(aes(x=size, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=size, y = prob), size=0.25) +
+  scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
+  scale_x_log10(breaks=c(1,10,100)) +
+  theme_bw() +
+  theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
+  xlab ('subtree sizes') + 
+  ylab('pdf')
+
+# Depth distribution
+df.depths     <- struct_depth_distribution(parents)
+df.depths$prob <- df.depths$frequency/sum(df.depths$frequency)
+df.depths_hat.Gomez2013 <- struct_depth_distribution(parents_hat.Gomez2013)
+df.depths_hat.Gomez2013$prob <- df.depths_hat.Gomez2013$frequency/sum(df.depths_hat.Gomez2013$frequency)
+df.depths$cumprob     <- 1-cumsum(df.depths$frequency/sum(df.depths$frequency))
+df.depths_hat.Gomez2013$cumprob <- 1-cumsum(df.depths_hat.Gomez2013$frequency/sum(df.depths_hat.Gomez2013$frequency))
+df.depths$data     <- 'data'
+df.depths_hat.Gomez2013$data <- 'Gomez et al. 2013'
+df.depths_all <- bind_rows(df.depths, df.depths_hat.Gomez2013)
+plotdepths <- ggplot(df.depths_all, aes(x=depth, y=cumprob, color=data)) + 
+  geom_point(aes(x=depth, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=depth, y = prob), size=0.25) +
+  scale_y_log10(breaks=c(0.001,0.01,0.1,1)) +
+  scale_x_log10(breaks=c(1,10,100)) +
+  theme_bw() +
+  theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
+  ylab('pdf')
+
+grid.arrange(plotdegrees, plotsubtrees, plotdepths, nrow = 3)
+```
+
+
+## Extending the model with reciprocity
+
+As seen above, depths using [Gómez et al. 2013](https://doi.org/10.1007/s11280-012-0162-8) are underestimated. This occurs because the model is not able to generate a typical phenomena of discussions: long chains of two users that alternate reciprocal interactions . This was the motivation for the generative model at [Aragón et al. 2017](https://aaai.org/ocs/index.php/ICWSM/ICWSM17/paper/view/15609/14789) which incorporates reciprocity as a feature. 
+
+A thread in this model is represented with the parent vector $\pi_{1:t}$ together with a vector of respective authors $a_{1:t}=~(a_1, a_2,...,a_t)$.The authorship vector will grow depending on the structure of the discussion, which in turn will depend on the authorship of the messages.
+
+The author model does not allow two consecutive comments to be written by the same user. Furthermore, a user cannot self-reply a comment made by herself. Let $U$ denote the number of different users that participated in the conversation so far. At time $t+1$, a new comment is originated from a new user with id $U+1$ with probability $p_{new}$,  or otherwise from an existing user $v$ chosen according to how many times user $v$ has been replied in the thread, $r_v$. The author model is described as
+$$
+p(a_{t+1} = v|a_{1:t},\pi_{1:t}) = \begin{cases}
+p_{new}         , & \text{ for  }  v=U+1\\
+\frac{(1-p_{new})2^{r_v}}{\sum_{i=1}^U{ 2^{r_{i}}}}, & \text{ for  }  v \in 1,...,U\\
+\end{cases}
+$$
+$p_{new}$ is set empirically to $t^{-1/k}$ ($k$ is estimated from the data). Notice that the preferential attachment process that selects authors is multiplicative. This is required to capture well the probability distribution of the number of comments per unique author in a thread. Once the author $a_{t+1}$ is decided, the new comment is attached to an existing comment $j$ proportionally to the extended attractiveness function $\phi'_j(\cdot)$, which now depends on the vector of authors $a_{1:t}$ and the parameters $\theta'=(\alpha,\tau,\beta,\kappa)$
+$$
+\phi'_j(\pi_{1:t},a_{1:t};\theta') := \phi_j(\pi_{1:t};\theta) + \kappa\delta_{a_{\pi_j}, a_{t+1}}
+\\
+p'(\pi_{t+1}=j|\pi_{1:t},a_{1:t}; \theta') \propto \phi'_j(\pi_{1:t},a_{1:t};\theta')
+$$
+where the additional term $\kappa\delta_{a_{\pi_j}, a_{t+1}}$ is non-zero for reciprocal comments only and $\phi_j(\cdot)$ is the original (author-independent) attractiveness function of Gómez et al. 2013. To illustrate the reciprocity feature, we create a synthetic thread with high $\kappa$:
+
+```{r}
+alpha <- 0.2
+beta <- 0.5
+tau <- 0.9
+kappa <- 5
+n = 300
+gtree <- parents_to_tree((gen.thread.Aragon2017(n, alpha, beta, tau, kappa, k=2))$parent)
+V(gtree)[1]$color <- "red" # except the root (initial message)
+deg <- degree(gtree, mode="all")
+gtree.un          <- as.undirected(gtree)       
+la                <- layout_as_tree(gtree.un, mode='out', root=1)
+plot(gtree.un, layout = la, vertex.size=2, vertex.label=NA)
+```
+
+The introduction of reciprocity led us to generate the typical chains of pairs of users exchanging messages. Our package provides:
+
+ * the likelihood function: likelihoods.R -> likelihoods.R -> likelihood_Aragon2017(df.trees, alpha, beta, tau, kappa)
+
+ * an estimation function based upon the likelihood: estimators.R  -> estimation_Aragon2017(df.trees, params){ 
+         (optimizes objective function likelihood_Aragon2017)
+         
+ * a function to generate synthetic data: thread_generators.R -> gen.thread.Aragon2017(n, alpha, beta, tau, kappa, k)
+         (generates sythetic parent vectors)
+
+We now estimate the parameter values from the same Meneame discussion threads (**note:** this process might last several minutes so it is recommended to store the estimated values in a .rda file for future executions).
+
+
+```{r}
+#params.Aragon2017 <- estimation_Aragon2017(data = df.trees %>% filter(train), params=list(alpha=runif(1), 
+#                                                                                      beta=runif(1)*10, 
+#                                                                                      tau=runif(1, max=0.99), 
+#                                                                                      kappa=runif(1)*10))
+#params.Aragon2017
+#save(params.Aragon2017, file = '../../data/meneame.params.rda')
+```
+
+to finally check whether the new model better captures the structural properties of discussions, in particular, the **depth** distribution.
+
+
+```{r}
+data('meneame.params.rda')
+# Generate threads with the estimated parameters
+sizes <- (df.trees %>% group_by(thread) %>% summarise(unique = n()))$unique
+sizes_sample <-  sample(sizes, length(sizes), replace=TRUE)
+parents_hat.Aragon2017 <- list()
+for(i in 1:length(sizes_sample)){
+  parents_hat.Aragon2017[[i]] <- (gen.thread.Aragon2017(sizes_sample[i], 
+                                                        alpha=params.Aragon2017$alpha, 
+                                                        beta=params.Aragon2017$beta, 
+                                                        tau=params.Aragon2017$tau,
+                                                        kappa=params.Aragon2017$kappa,
+                                                        k=7))$parent
+}
+# Plot some threads in tree and graph representations
+par(mfrow = c(2,4))
+for(i in 1:8){
+  gtree             <- parents_to_tree(parents_hat.Aragon2017[[i]])
+  V(gtree)[1]$color <- "red" # except the root (initial message)
+  deg <- degree(gtree, mode="all")
+  gtree.un          <- as.undirected(gtree)       
+  la                <- layout_as_tree(gtree.un, mode='out', root=1)
+  plot(gtree.un, layout = la, vertex.size=deg*1.5, vertex.label=NA)
+}
+```
+
+```{r}
+# Degree distribution
+df.degrees_hat.Aragon2017 <- struct_degree_distribution(parents_hat.Aragon2017)
+df.degrees_hat.Aragon2017$prob <- df.degrees_hat.Aragon2017$frequency/sum(df.degrees_hat.Aragon2017$frequency)
+df.degrees_hat.Aragon2017$cumprob <- cumsum(df.degrees_hat.Aragon2017$frequency/sum(df.degrees_hat.Aragon2017$frequency))
+df.degrees_hat.Aragon2017$data <- 'Aragón et al. 2017'
+df.degrees_all <- bind_rows(df.degrees, bind_rows(df.degrees_hat.Aragon2017, df.degrees_hat.Gomez2013))
+plotdegrees <- ggplot(df.degrees_all, aes(x=degree, y=cumprob, color=data)) + 
+  geom_point(aes(x=degree, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=degree, y = prob), size=0.25) +
+  scale_x_log10(breaks=c(1,10,100)) +
+  scale_y_log10(breaks=c(0.0001,0.001,0.01,0.1,1)) +
+  theme_bw() + 
+  theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
+  ylab('pdf')
+
+# Subtree size distribution
+df.subtrees_hat.Aragon2017 <- struct_subtree_size_distribution(parents_hat.Aragon2017)
+df.subtrees_hat.Aragon2017$prob <- df.subtrees_hat.Aragon2017$frequency/sum(df.subtrees_hat.Aragon2017$frequency)
+df.subtrees_hat.Aragon2017$cumprob <- cumsum(df.subtrees_hat.Aragon2017$frequency/sum(df.subtrees_hat.Aragon2017$frequency))        
+df.subtrees_hat.Aragon2017$data <- 'Aragón et al. 2017'
+df.subtrees_all <- bind_rows(df.subtrees, bind_rows(df.subtrees_hat.Aragon2017, df.subtrees_hat.Gomez2013))
+plotsubtrees <- ggplot(df.subtrees_all, aes(x=size, y=cumprob, color=data)) + 
+  geom_point(aes(x=size, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=size, y = prob), size=0.25) +
+  scale_x_log10(breaks=c(1,10,100)) +
+  scale_y_log10(breaks=c(0.0001,0.001,0.01,0.1,1)) +
+  theme_bw() +
+  theme(panel.grid.major = element_line(colour = "#d0d0d0")) + 
+  xlab ('subtree sizes') + 
+  ylab('pdf')
+
+# Depth distribution
+df.depths_hat.Aragon2017 <- struct_depth_distribution(parents_hat.Aragon2017)
+df.depths_hat.Aragon2017$prob <- df.depths_hat.Aragon2017$frequency/sum(df.depths_hat.Aragon2017$frequency)
+df.depths_hat.Aragon2017$cumprob <- 1-cumsum(df.depths_hat.Aragon2017$frequency/sum(df.depths_hat.Aragon2017$frequency))    
+df.depths_hat.Aragon2017$data <- 'Aragón et al. 2017'
+df.subtrees_all <- bind_rows(df.subtrees, bind_rows(df.subtrees_hat.Aragon2017, df.subtrees_hat.Gomez2013))
+df.depths_all <- bind_rows(df.depths, bind_rows(df.depths_hat.Gomez2013, df.depths_hat.Aragon2017))
+plotdepths <- ggplot(df.depths_all, aes(x=depth, y=cumprob, color=data)) + 
+  geom_point(aes(x=depth, y = prob), shape = 21, size = 1, stroke = 1) +
+  geom_line(aes(x=depth, y = prob), size=0.25) +
+  scale_y_log10(breaks=c(0.0001,0.001,0.01,0.1,1)) +
+  scale_x_log10(breaks=c(1,10,100)) +
+  theme_bw() +
+  theme(panel.grid.major = element_line(colour = "#d0d0d0")) +
+  ylab('pdf')
+
+grid.arrange(plotdegrees, plotsubtrees, plotdepths, nrow = 3)
+```
+
