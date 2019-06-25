@@ -32,9 +32,11 @@ Open R Studio and install some R packages we will need:
 ```{r}
   # install.packages("igraph")      # Classic R package for graphs
   # install.packages("ggplot2")     # Classic R package for plots
+  # install.packages("gridExtra")   # Classic R package for "grid" graphics
   # install.packages("tidyr")       # Classic R package to manipulate data
   # install.packages("dplyr")       # Classic R package to manipulate data
   # install.packages("dfoptim")     # R package with Nelder-Mead optimizer
+  # install.packages("data.table")  # R package that provides an enhanced version of data.frames
   # install.packages("foreach")     # R package for the foreach looping construct
   # install.packages("doParallel")  # R package for the %dopar% function using the parallel package
 ```
