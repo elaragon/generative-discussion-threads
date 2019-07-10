@@ -1,6 +1,6 @@
 # Generative models of online discussion threads
 
-<br/>Welcome to our [ICWSM-19 tutorial](https://icwsm.org/2019/program/tutorial/) on generative models of online discussion threads. The tutorial is based on the survey:
+<br/>Welcome to our tutorial on generative models of online discussion threads. The tutorial is based on the survey:
 
 * [Aragón, P., Gómez, V., Garcı́a, D. & Kaltenbrunner, A. Generative models of online discussion threads: state of the art and research challenges. J. Internet Serv. Appl. 8, 15 (2017). DOI 10.1186/s13174-017-0066-z](https://jisajournal.springeropen.com/articles/10.1186/s13174-017-0066-z)
 
@@ -19,5 +19,3 @@ The notebook for the hands-on session is based on the [genthreads](https://githu
 ## Acknowledgment
 
 This work is supported by the Spanish Ministry of Economy and Competitiveness under the Maria de Maeztu Units of Excellence Programme (MDM-2015-0502).
-
-![](https://pbs.twimg.com/media/DgqBO7ZV4AIO58d.jpg)
