@@ -37,6 +37,9 @@ Open R Studio and install some R packages we will need:
   # install.packages("dfoptim")     # R package with Nelder-Mead optimizer
   # install.packages("foreach")     # R package for the foreach looping construct
   # install.packages("doParallel")  # R package for the %dopar% function using the parallel package
+  # install.packages("devtools")    # R package that simplify many common tasks
+  # If devtools fails, (e.g., Ubuntu 16) check:
+  # https://stackoverflow.com/questions/31114991/installation-of-package-devtools-had-non-zero-exit-status-in-a-powerpc/39298745#39298745
 ```
 
 <br/>It is time now to download the R package, there are two options:
@@ -596,7 +599,7 @@ to finally check whether the new model better captures the structural properties
 
 
 ```{r}
-data('meneame.params.rda')
+data('../../data/meneame.params.rda')
 # Generate threads with the estimated parameters
 sizes <- (df.trees %>% group_by(thread) %>% summarise(unique = n()))$unique
 sizes_sample <-  sample(sizes, length(sizes), replace=TRUE)
